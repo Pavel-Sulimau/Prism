@@ -11,6 +11,29 @@ namespace Prism.Common
 {
     public static class PageUtilities
     {
+        public static async Task InvokeViewAndViewModelActionAsync<T>(object view, Func<T, Task> asyncAction) where T : class
+        {
+            if (view is T viewAsT)
+                await asyncAction(viewAsT);
+
+            if (view is BindableObject element)
+            {
+                if (element.BindingContext is T viewModelAsT)
+                {
+                    await asyncAction(viewModelAsT);
+                }
+            }
+
+            if (view is Page page)
+            {
+                var partials = (List<BindableObject>)page.GetValue(ViewModelLocator.PartialViewsProperty) ?? new List<BindableObject>();
+                foreach (var partial in partials)
+                {
+                    await InvokeViewAndViewModelActionAsync(partial, asyncAction);
+                }
+            }
+        }
+
         public static void InvokeViewAndViewModelAction<T>(object view, Action<T> action) where T : class
         {
             if (view is T viewAsT)
@@ -129,6 +152,14 @@ namespace Prism.Common
         {
             if (page != null)
                 InvokeViewAndViewModelAction<INavigatingAware>(page, v => v.OnNavigatingTo(parameters));
+        }
+
+        public static Task OnNavigatingToAsync(object page, INavigationParameters parameters)
+        {
+            if (page != null)
+                return InvokeViewAndViewModelActionAsync<INavigatingAsyncAware>(page, async v => await v.OnNavigatingToAsync(parameters));
+
+            return Task.FromResult(0);
         }
 
         public static void OnNavigatedTo(object page, INavigationParameters parameters)
